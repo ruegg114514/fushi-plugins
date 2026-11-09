@@ -12,7 +12,7 @@ music/               Fushi 音乐插件（.fushiplug，QuickJS 沙箱）
 video/               Aniyomi 格式视频扩展（APK）
   repo.json          扩展仓库索引（Fushi「添加仓库」直接可用）
   index.min.json     同内容旧格式
-  *.apk              AniCh v14.8 / Bilibili v14.20 成品
+  *.apk              AniCh v14.8 / Bilibili v14.21 成品
   src/               两个扩展的 Kotlin 源码
 ```
 
@@ -42,7 +42,9 @@ fushi_cli ext install eu.kanade.tachiyomi.animeextension.all.bilibili --kind ani
 （自签名 APK，install 需 `--trust-signer`；指纹 `b20c020a…f3765`，两 APK 同一把 key。）
 
 - **AniCh**：聚合番剧站源（推荐/最新/中文搜索/线路延迟探活）。搜索只吃中文关键词是上游接口限制。
-- **Bilibili**：B 站番剧/投稿源，WBI 签名抗 -412 风控，合并流播放（绕开桥接层丢 DASH 字段的上游 bug），字幕 VTT 桥。
+- **Bilibili**：B 站番剧/投稿源，WBI 签名抗 -412 风控。**v14.21 起走 DASH + `Video.audioTracks`**
+  （宿主 Fushi 3.3.0 修复 BUG-3986 后，外挂音轨经 `audio-add auto` 正常出声，画质不再封顶 720P）；
+  老视频无 DASH 时自动回退合并流。字幕经 SubtitleVttBridge 转 WebVTT。
 
 ## 重新构建
 
