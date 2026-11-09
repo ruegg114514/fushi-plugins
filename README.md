@@ -12,7 +12,9 @@ music/               Fushi 音乐插件（.fushiplug，QuickJS 沙箱）
 video/               Aniyomi 格式视频扩展（APK）
   repo.json          扩展仓库索引（Fushi「添加仓库」直接可用）
   index.min.json     同内容旧格式
-  *.apk              AniCh v14.8 / Bilibili v14.21 成品
+  apk/               AniCh v14.8 / Bilibili v14.21 成品
+                     （Fushi 把索引里的 apk 字段解析为 <索引URL去掉文件名>/apk/<文件名>，
+                       所以 APK 必须放 video/apk/ 子目录，与 Keiyoushi/yuzono 仓库同构）
   src/               两个扩展的 Kotlin 源码
 ```
 
