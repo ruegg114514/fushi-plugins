@@ -1,0 +1,75 @@
+{
+  "schema": 1,
+  "id": "dev.fushi.bilibili",
+  "name": "Bilibili 音乐",
+  "version": "4.2.3",
+  "api": 1,
+  "entry": "main.js",
+  "author": "Fushi music source pack (Netease/QQ/Bilibili); design after feeluown/FuoEvolve",
+  "description": "B 站公开音轨（无需会员）；手动选源（曲目菜单「以这首起电台」列出候选视频）；候选自动换源；歌词自动关联网易/QQ",
+  "homepage": "https://github.com/feeluown/FuoEvolve",
+  "capabilities": [
+    "search",
+    "searchBest",
+    "album",
+    "playlist",
+    "artist",
+    "artistAlbums",
+    "artistSimilar",
+    "stream",
+    "lyrics",
+    "lyricsSearch",
+    "lyricsFetch",
+    "home",
+    "library",
+    "like",
+    "playlistEdit",
+    "radio",
+    "account",
+    "login"
+  ],
+  "searchTypes": [
+    "song",
+    "album",
+    "artist"
+  ],
+  "permissions": [
+    "network",
+    "storage",
+    "credentials"
+  ],
+  "network": {
+    "domains": [
+      "api.bilibili.com",
+      "passport.bilibili.com",
+      "www.bilibili.com",
+      "space.bilibili.com",
+      "i0.hdslb.com",
+      "i1.hdslb.com",
+      "i2.hdslb.com",
+      "*.hdslb.com",
+      "*.biliapi.net",
+      "*.biliapi.com",
+      "*.bilivideo.cn",
+      "*.bilivideo.com",
+      "*.mcdn.bilivideo.cn",
+      "*.akamaized.net",
+      "music.163.com",
+      "*.music.126.net",
+      "*.126.net",
+      "c.y.qq.com",
+      "u.y.qq.com",
+      "y.qq.com",
+      "*.gtimg.cn",
+      "*.y.qq.com",
+      "*.qqmusic.qq.com",
+      "*.music.qq.com",
+      "lrclib.net",
+      "*.lrclib.net"
+    ],
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  }
+}

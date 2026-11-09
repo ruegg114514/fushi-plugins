@@ -1,0 +1,8 @@
+ext {
+    extName = 'Bilibili'
+    extClass = '.Bilibili'
+    extVersionCode = 20
+    isNsfw = false
+}
+
+apply from: "$rootDir/common.gradle"

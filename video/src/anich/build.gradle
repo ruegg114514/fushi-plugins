@@ -1,0 +1,8 @@
+ext {
+    extName = 'AniCh'
+    extClass = '.AniCh'
+    extVersionCode = 8
+    isNsfw = false
+}
+
+apply from: "$rootDir/common.gradle"
