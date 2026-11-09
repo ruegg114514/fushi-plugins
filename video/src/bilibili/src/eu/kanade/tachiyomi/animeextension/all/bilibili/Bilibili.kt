@@ -277,13 +277,14 @@ class Bilibili : ConfigurableAnimeSource, AnimeHttpSource() {
                 "bvid" to bvid,
                 "cid" to cid,
                 "qn" to if (sessData.isNotEmpty()) "80" else "64",
-                // fnval=0 请求**音视频合并**的 mp4（响应走 durl）。
+                // fnval=16 请求 DASH（音视频分离）。
                 //
-                // 为什么不用 DASH（fnval=16/4048）：DASH 把音视频拆成两条独立流，
-                // 需要宿主把 audioTracks / mpvArgs 传给播放器；Fushi 桌面端的 Video
-                // 投影只取五个字段，这两项会在桥接层被丢弃（见 issue #xxx），
-                // 结果就是「有画面没声音」。合并流是单 URL 自带音轨，可靠但封顶 720P。
-                "fnval" to "0",
+                // v14.21 起改回 DASH：宿主 Fushi 3.3.0（BUG-3986）已把
+                // Video.audioTracks 接进外挂音轨通路（externalAudioTracks →
+                // mpv audio-add auto），DASH 纯视频流 + 外挂音轨能正常出声，
+                // 不再受合并流 720P 封顶。响应里若没有 dash（老视频）则
+                // 回退 durl 合并流。
+                "fnval" to "16",
                 "fourk" to "1",
             ),
         )
@@ -389,45 +390,56 @@ class Bilibili : ConfigurableAnimeSource, AnimeHttpSource() {
             reqUrl.queryParameter("cid").orEmpty(),
         )
 
-        // 音频轨：多条不同码率，取带宽最高的一条。
-        val audioUrl = data.obj("dash")?.arr("audio")
-            ?.mapNotNull { el ->
+        // ── 主路径：DASH（v14.21，宿主已支持外挂音轨） ──
+        // 音频轨多条不同码率，取带宽最高的一条，配给所有视频流。
+        val audioTracks = (data.obj("dash")?.arr("audio") ?: emptyList())
+            .mapNotNull { el ->
                 val a = runCatching { el.jsonObject }.getOrNull() ?: return@mapNotNull null
                 val u = a.str("baseUrl") ?: a.str("base_url") ?: return@mapNotNull null
                 val bw = runCatching { a["bandwidth"]?.jsonPrimitive?.long }.getOrNull() ?: 0L
-                bw to u
+                val codec = a.str("codecs").orEmpty().take(9)
+                bw to Track(u, "音频 ${bw / 1000}kbps $codec")
             }
-            ?.maxByOrNull { it.first }
-            ?.second
+            .sortedByDescending { it.first }
+            .map { it.second }
 
-        // 合并流（durl）：音视频已合并在一个 mp4 里，播放器直接就能出声。
-        data.arr("durl")?.forEachIndexed { i, el ->
-            val o = runCatching { el.jsonObject }.getOrNull() ?: return@forEachIndexed
-            val u = o.str("url") ?: return@forEachIndexed
-            val qn = runCatching { data["quality"]?.jsonPrimitive?.int }.getOrNull() ?: 0
-            val size = runCatching { o["size"]?.jsonPrimitive?.long }.getOrNull() ?: 0L
-            val mb = if (size > 0) " · ${size / 1024 / 1024}MB" else ""
+        data.obj("dash")?.arr("video")?.forEach { el ->
+            val v = runCatching { el.jsonObject }.getOrNull() ?: return@forEach
+            val url = v.str("baseUrl") ?: v.str("base_url") ?: return@forEach
+            val h = runCatching { v["height"]?.jsonPrimitive?.int }.getOrNull() ?: 0
+            val w = runCatching { v["width"]?.jsonPrimitive?.int }.getOrNull() ?: 0
+            val codec = v.str("codecs").orEmpty().take(4)
+            val label = "${maxOf(w, h)}P · $codec" +
+                if (audioTracks.isNotEmpty()) "" else " · 无音频"
             videos.add(
                 Video(
-                    url = u,
-                    quality = "${qualityLabel(qn)} · P${i + 1}$mb",
-                    videoUrl = u,
+                    url = url,
+                    quality = label,
+                    videoUrl = url,
                     headers = headers,
                     subtitleTracks = subs,
-                    audioTracks = emptyList(),
+                    audioTracks = audioTracks,
                 ),
             )
         }
 
-        // 兜底：极少数老视频只给 DASH（无音轨，至少能看画面）
+        // ── 兜底：合并流（durl，老视频无 DASH）：单 URL 自带音轨 ──
         if (videos.isEmpty()) {
-            data.obj("dash")?.arr("video")?.forEach { el ->
-                val v = runCatching { el.jsonObject }.getOrNull() ?: return@forEach
-                val url = v.str("baseUrl") ?: v.str("base_url") ?: return@forEach
-                val h = runCatching { v["height"]?.jsonPrimitive?.int }.getOrNull() ?: 0
-                val codecs = v.str("codecs").orEmpty()
+            data.arr("durl")?.forEachIndexed { i, el ->
+                val o = runCatching { el.jsonObject }.getOrNull() ?: return@forEachIndexed
+                val u = o.str("url") ?: return@forEachIndexed
+                val qn = runCatching { data["quality"]?.jsonPrimitive?.int }.getOrNull() ?: 0
+                val size = runCatching { o["size"]?.jsonPrimitive?.long }.getOrNull() ?: 0L
+                val mb = if (size > 0) " · ${size / 1024 / 1024}MB" else ""
                 videos.add(
-                    Video(url, "${h}P · ${codecs.take(4)} · 无音频", url, headers, subs, emptyList()),
+                    Video(
+                        url = u,
+                        quality = "${qualityLabel(qn)} · P${i + 1}$mb",
+                        videoUrl = u,
+                        headers = headers,
+                        subtitleTracks = subs,
+                        audioTracks = emptyList(),
+                    ),
                 )
             }
         }
@@ -624,30 +636,6 @@ class Bilibili : ConfigurableAnimeSource, AnimeHttpSource() {
  * "Element class JsonObject is not a JsonPrimitive"，整个列表解析崩掉。
  */
 /** B 站 qn 码 → 可读画质。 */
-/**
- * 通过反射给 Video 设置 mpvArgs。
- *
- * 编译期链接的是 lib-14 ABI（构造器只有 6 个参数，没有 mpvArgs），但 Fushi
- * 宿主运行的是 lib-16 的 Video 类，它带 `mpvArgs: List<Pair<String,String>>`。
- * 直接调 lib-16 的构造器编译不过，所以编译用 lib-14、运行期用反射补字段。
- *
- * 音频为什么要走 mpvArgs：B 站 DASH 音视频分离，而 Fushi 桌面端的桥接只投影
- * 五字段（videoTitle/resolution/bitrate/preferred/headers），audioTracks 会被
- * 丢掉。libmpv 的 `--audio-file=<url>` 能把外挂音轨和视频合并播放。
- *
- * 反射失败（宿主不是 lib-16）时静默跳过——视频照常播，只是没声音，不抛异常
- * 打断整条取流链路。
- */
-@Suppress("UNCHECKED_CAST")
-private fun attachMpvArgs(video: Any, args: List<Pair<String, String>>) {
-    if (args.isEmpty()) return
-    runCatching {
-        val f = video.javaClass.getDeclaredField("mpvArgs")
-        f.isAccessible = true
-        f.set(video, args)
-    }
-}
-
 private fun qualityLabel(qn: Int): String = when (qn) {
     127 -> "8K"
     126 -> "杜比视界"
